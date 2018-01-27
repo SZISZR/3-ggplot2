@@ -1,0 +1,538 @@
+---
+title: "Adatvizualizáció I."
+author: "Tajti András - Tóth Tímea"
+date: '2018 január 20 '
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(RefManageR)
+
+biblio <- ReadZotero(user = "userid", .params = list(collection = 'collectionid', key="key"),delete.file = TRUE)
+
+```
+
+Az R képes plotok elõállítására további csomagok telepítése nélkül az úgynevezett base csomagból. Az így készíthetõ ábrák nem veszik fel a versenyt a késõbb bemutatott ggplot csomag ábráival, elõnyük viszont, hogy egyszerûen és gyorsan elõállíthatóak. Az órán elõször a base csomaggal, majd a ggplot2 csomaggal foglalkozunk.
+Az óra anyagai elsõsorban az R for Data Science könyvre épülnek `r Cite(biblio[[1]])`
+
+## Ismerkedés az órán használt adatokkal
+
+A base R lehetõségeinek bemutatására a [Gapminder](https://github.com/jennybc/gapminder) adatbázist fogjuk használni, ami várható élettartam, népességszám és egy fõre jutó GDP adatot tartalmaz 142 országra 1952 és 2007 között. Az adatbázis R csomagként telepíthetõ: `install.packages("gapminder", repos = "http://cran.rapporter.net/")`
+
+```{r results="hide"}
+
+# csomag betöltése
+library(gapminder)
+
+
+```
+
+ELõször is nézzük meg, milyen adatokat tartalmaz a csomagban lévõ fõ data.frame.
+
+```{r}
+str(gapminder)
+```
+
+Az adatok tibble formátumban szerepelnek, az adatbázis öt változót tartalmaz, az ország és a kontinens megnevezése faktorként szerepel. A év és a populáció adat integerként, a várható élettartam numerikus változóként van megadva.
+
+```{r}
+summary(gapminder)
+```
+
+A faktorokról az összefoglalóban gyakorisági táblázatot látunk értékenként, a többi változó esetében minimum, maximum, átlag és kvartilis értékeket találunk. A head parancs segítségével megnézhetjük az elsõ pár sort, a teljes adatbázis a `View(gapminder)` paranccsal nézhetõ meg.
+
+```{r}
+head(gapminder)
+```
+
+A `dplyr` csomaggal könnyen készíthetünk aggregációkat, almintákat a további elemzéshez.
+
+```{r message=FALSE}
+
+library("dplyr")
+
+# Magyarországra vonatkozó adatok
+(hungary <- gapminder %>%
+  filter(country == "Hungary"))
+
+# Összes ország, 2007-es adatok
+(gapminder_2007 <- gapminder %>%
+  filter(year == 2007))
+
+
+# Medián várható élettartam elõállítása kontinensenként a 2007-es évre vonatkozóan
+(median_life_exp_by_continent_2007 <- gapminder %>%
+  filter(year == 2007) %>%
+  group_by(continent) %>%
+  summarise(median_life_exp = median(lifeExp)))
+
+# Európa és Amerika országainak várható élettartama 1980-ban, 1990-ben és 2007-ben
+(eur_am_1957_1987_2007 <- gapminder %>%
+  filter(year %in% c(1957,1987,2007) & continent %in% c('Europe','Americas')))
+
+```
+
+## Base R
+
+Most pedig készítsünk pár plotot az elõbb létrehozott metszetekre. 
+
+### Pont- és vonaldiagram
+
+Pont- és vonaldiagramot a `plot(x,y,...)` paranccsal lehet elõállítani. A lehetséges függvényparaméterek (*x*, *y* és a *'...'*-tal jelölt további paraméterek) leírását a `?plot` parancs futtatásával kaphatjátok meg. 
+
+```{r}
+# egyszerû scatter plot
+plot(hungary$year, hungary$lifeExp)
+```
+
+Ha nem adunk meg további paramétereket, akkor az ábra nem kap címet, a tengelyfeliratok pedig a megadott változók nevei lesznek. A feliratok beállítását a `main`, `xlab` és `ylab` paraméterekkel tehetjük meg.
+
+```{r}
+
+# cím és tengelyfeliratok hozzáadása
+plot(hungary$year, hungary$lifeExp
+     ,main = "Várható élettartam alakulása Magyarországon 1952 - 2007"
+     ,xlab = "Év"
+     ,ylab = "Várható élettartam")
+
+```
+
+A plothoz hozzáadhatóak egyenesek az `abline()` paranccsal, például a két változó kapcsolatát leíró regressziós egyenes.
+
+```{r}
+
+# Az elõzõ plot parancsot követõen közvetlenül futtajuk az abline parancsot
+plot(hungary$year, hungary$lifeExp
+     ,main = "Várható élettartam alakulása Magyarországon 1952 - 2007"
+     ,xlab = "Év"
+     ,ylab = "Várható élettartam")
+abline(lm(hungary$lifeExp ~ hungary$year))
+
+```
+
+### Egyéb diagram típusok
+
+Hisztogram a `hist()`, boxplot a `boxplot()`, oszlopdiagram a `barplot()`, kördiagram a `pie()` paranccsal állítható elõ.
+
+```{r}
+
+# 2007-es országonkénti várható élettartam megoszlása
+hist(gapminder_2007$lifeExp)
+
+# Boxplot a 2007-es országonkénti várható élettartamra
+boxplot(gapminder_2007$lifeExp)
+
+```
+
+
+## ggplot2
+
+### Alap syntax
+
+A csomag telepítéséhez futtassuk a következõ parancsot: `install.packages("ggplot2", repos = "http://cran.rapporter.net/")`
+
+ggplot ábrák készítésekor elõször megadjuk a `ggplot()` függvényben, hogy milyen data.frame alapján szeretnénk az ábrát elkészíteni, illetve, hogy a data.frame-ben található változók milyen szerepet fognak betölteni az ábrán (x, y, méret, csoport jelölõ ... stb.), majd meghatározzuk a megjelenítési módot, vagyis, hogy az adatokat hogyan transzformáljuk vizuális elemekké. Ilyen megjelenítési mód például a pontdiagram, ahol a az (x,y) adatpárok a pontok koordinátáit jelölik, vagy oszlopdiagram, ahol az x változó a kategóriákat adja meg, az y pedig az oszlopok magasságát. A megjelenítési módokat layereknek, vagyis rétegeknek nevezzük, ezekbõl egy vagy akár több is hozzáadható az ábrához, ahogy ezt hamarosan látni fogjuk.
+
+```{r}
+
+library(ggplot2)
+
+# Pontdiagram: Várható élettartam alakulása Magyarországon
+ggplot(data = hungary) + # data set megadása
+  geom_point(mapping = aes(x = year, y = lifeExp)) # mapping és megjelenítési mód megadása
+
+```
+
+Egy-egy ábra készítése során elég egyszer megadnunk, hogy milyen data.frame-t használunk, attõl kezdve elég a változók neveit megadnunk, nem kell visszautalni a data set nevére *$* jelöléssel vagy más syntax-szal. A scriptben látott *+* jelölés a *%>%* (pipe) operátorhoz hasonlóan tovább csatornázza az outputot az egyes parancsok között. A megjelenítési módhoz használt függvények *geom + típus* elnevezési konvenciót követnek (pl. `geom_point()`). Amikor a megjelenítési módot határozzuk meg, az összes olyan jellemzõ, ami függ valamelyik változótól, az `aes()` (**aes**thetic) függvényben kap helyet, a többi paraméter pedig azon kívül vesszõvel elválasztva. 
+
+Ha a pontokat egyszerûen szeretnénk átszínezni és felnagyítani a változók értékétõl függetlenül:
+
+```{r}
+
+# Pontdiagram: Várható élettartam alakulása Magyarországon
+ggplot(data = hungary) +
+  # a color és a size paraméter az aes()-en KÍVÜL szerepel
+  geom_point(mapping = aes(x = year, y = lifeExp), color = "red", size=3) 
+
+```
+
+Ha a pontok színét az évszámtól szeretnénk függõvé tenni, akkor a következõ syntaxot használhatjuk:
+
+```{r}
+
+# Pontdiagram: Várható élettartam alakulása Magyarországon
+ggplot(data = hungary) +
+  # a color paraméter az aes()-en BELÜL szerepel
+  geom_point(mapping = aes(x = year, y = lifeExp, color = year), size=3) 
+
+```
+
+Ha az egyes paraméterek értékét egy változótól tesszük függõvé, ahogy azt a `color = year` beállításnál láttuk, akkor az elért hatás függ a változó típusától. Szín megadásánál, ha a változó folytonos, mint például az év változó, akkor a függvény folytonos színskálát rendel az értékekhez, ha faktor, akkor kategoriális színskálát, ami segít az egyes kategóriák megkülönböztetésében. A következõ példában az évet transzformáljuk faktorrá, és úgy tegyük tegyük tõle függõvé a színezést.
+
+```{r}
+
+# Pontdiagram: Várható élettartam alakulása Magyarországon
+ggplot(data = hungary) +
+  # a color paraméter az aes()-en BELÜL szerepel; az év faktor
+  geom_point(mapping = aes(x = year, y = lifeExp, color = as.factor(year)), size=3) 
+
+```
+
+A színen kívül számos más paraméter is állítható a megjelenítésben, például a méret (size), jelölõ formája (shape), kitöltési szín (fill), vagy az áttetszõség mértéke (alpha). Az állítható paraméterek listája megtalálható az egyes diagram típusok dokumentációjában, lásd például `?geom_point`. 
+
+Az állítható paraméterek, úgymint a szín, a méret, vagy az eltérõ jelölõ formák segítenek abban, hogy a charton több információt jelenítsünk meg, vagy felhívjuk a figyelmet a chart fõ mondanivalójára. Ha például az országokat külön adatpontokként szeretnénk megjeleníteni a várható élettartam - GDP/fõ pontdiagrammon, akkor jelölhetjük az eltérõ kontinenshez tartozó országokat különbözõ színnel, hogy a kontinensek továbbra is összehasonlíthatóak legyenek. 
+
+```{r}
+
+# Pontdiagram: várható élettartam az egy fõre esõ GDP függvényében (2007)
+ggplot(data = gapminder_2007) +
+  # a color paraméter az aes()-en BELÜL szerepel
+  geom_point(mapping = aes(x = gdpPercap, y = lifeExp, color = continent)) 
+
+```
+
+
+### Facet
+
+A színkód alkalmazása ha sok adatpontot szeretnénk ábrázolni, már nem minden esetben eredményez átlátható ábrákat. Az aggregálás mellett ebben az esetben megoldás lehet, ha faceteket használunk, vagyis az ábrát egy változó mentén daraboljuk. Az elõzõ pontdiagramot például felbonthatjuk a kontinensek mentén 5 különbözõ ábrára a `facet_wrap()` függvénnyel. A `~` után adjuk meg a változót, aminek az értékei mentén felbontjuk az adathalmazt, az `nrow` és `ncol` paraméterek közül egyet kell megadnunk, ami a sorok vagy az oszlopok számát jelöli. Ennyi sorban vagy oszplopban fogja a függvény elhelyezni a létrejövõ kategoriánkénti nézeteket.
+
+```{r fig.width=9}
+
+# Pontdiagram: várható élettartam az egy fõre esõ GDP függvényében (2007)
+ggplot(data = gapminder_2007) +
+  geom_point(mapping = aes(x = gdpPercap, y = lifeExp, color = continent)) +
+  facet_wrap(~ continent, nrow = 2) # a kontinens mentén bontunk, és két sorban helyezzük el az ábrákat
+
+```
+
+Ha két változó szerint szeretnénk bontani az ábrát, akkor erre a `facet_grid()` függvény a legalkalmasabb. Vizsgáljuk meg például a GDP/fõ és a várható élettartam összefüggését Európa és Amerika országaira 1980-ban, 1990-ben és 2007-ben.
+
+```{r fig.width=9 }
+
+# Pontdiagram: Európa és Amerika országainak várható élettartama 1987-ban, 1997-ben és 2007-ben
+ggplot(eur_am_1957_1987_2007) +
+  geom_point(mapping = aes(x = gdpPercap, y = lifeExp, color = continent)) +
+  facet_grid(continent ~ year) # a kontinens és az év mentén bontunk
+
+```
+
+### Diagram típusok
+
+A chartokon eddig végig pontdiagramot használtunk, de természetesen használhatunk számos más diagram típust is, például vonaldiagramot vagy oszlopdiagramot. Ehhez az ábrán alkalmazott geometriát kell megváltoztatnunk. Szemléltetésképpen a kontinensenkénti medián adatokat ábrázolhatjuk pont vagy oszlopdiagramként is.
+
+```{r fig.width=4.5, fig.height=4}
+
+# Pontdiagram: medián várható élettartam
+scatter_plot <- ggplot(data = median_life_exp_by_continent_2007) + 
+  geom_point(mapping = aes(x = continent, y = median_life_exp, color = continent))
+
+# Oszlopdiagram: medián várható élettartam
+barchart <- ggplot(data = median_life_exp_by_continent_2007) +
+  # csak a geometriai megjelenítésmód változik, a mapping nem, 
+  # a color paraméter viszont másképp viselkedik a két esetben
+  geom_col(mapping = aes(x = continent, y = median_life_exp, color = continent)) 
+
+# a ggplot2 chart, mint bármilyen más objektum az R-ben, változóban tárolható
+# A megjelenítéshez le kell futtatnunk az eltárolt chartokat
+scatter_plot; barchart
+
+```
+
+Az Ausztriát és Magyarországot összehasonlító chart pontdiagramját lecserélhetjük egy a megfigyelési pontokra simuló loess görbével.
+
+```{r fig.width=9 }
+
+# Loess görbe: Európa és Amerika országainak GDP/fõ értéke és várható élettartama 1987-ban, 1997-ben és 2007-ben
+ggplot(eur_am_1957_1987_2007) +
+  # geom_point helyett geom smooth, plusz paraméter a 'method'
+  geom_smooth(mapping = aes(x = gdpPercap, y = lifeExp, color = continent), method = loess) + 
+  facet_grid(continent ~ year) # a kontinens és az év mentén bontunk
+
+```
+
+Az egyes geometriai megjelenítési módok paramétei eltérõek. Oszlopdiagramoknál például állítható a kitöltési szín a `fill` paraméterrel, vonaldiagramoknál viszont nem értelmezhetõ ez a beállítás. A `geom_smooth()` függvény lehetõvé teszi az illesztési módszer beállítását a `method` paraméteren keresztül, míg a `geom_point()` esetében nincs értelme ilyen beállításnak. 
+
+Az elérhetõ layerekrõl a [ggplot2](http://ggplot2.tidyverse.org/reference/) oldalán találtok listát.
+
+A geometriai megjelenítési módok mellett az is megválasztható, hogy milyen statisztikai transzformációt végezzünk az adatokon, de (számunkra legalább is) általában kényelmesebb és hatékonyabb elõször transzformálni az adatokat, és ezt követõen az új data.frame-bõl ggplot ábrát készíteni. A statisztikai transzformációkra példaként készítsük el a 2007-es résztvevõ országok gyakorisági diagramját kontinensenként.
+
+```{r}
+
+# Az aggregálást a stat_count függvény segítségével végezzük el
+# A stat_count()-hoz tartozó default geometriai megjelenítés a geom_bar()
+ggplot(data = gapminder_2007) + 
+  stat_count(mapping = aes(x = continent))
+
+# A table függvénnyel ellenõrizhetjük az aggregáció helyességét
+table(gapminder_2007$continent)
+
+```
+
+Az egyes statisztikai transzformációkhoz hozzá van rendelve egy-egy default geometriai megjelenítési mód. A `stat_count()` esetében mint láttuk a `geom_bar()`. Ha nem módosítjuk az alapbeállításokat, akkor `stat_count()` alkalmazásakor oszlopdiagramot kapunk. Hasonlóan a geometriai megjelenítési módokhoz is tartoznak default statisztikai transzformációk. Ha egy ggplot ábrán `geom_bar()` megjelenítési módot használunk, és nem módosítjuk az alapbeállításokat, akkor a függvény által alkalmazott transzformáció a `stat="count"` lesz. A geomatriai megjelenítési módok és statisztikai transzformációk alapbeállítását, mint minden más paramétert, felül lehet írni. (Az elõre aggregált adatokon a `geom_col()` függvényt használtuk korábban, ahol közvetlenül adtuk meg az oszlopmagasságokat, és nem a függvény kalkulálta azokat.)
+
+```{r}
+
+# A geom_bar() függvény az elõzõvel azonos eredményt ad
+# A default statisztikai transzformáció a count
+ggplot(data = gapminder_2007) + 
+  geom_bar(mapping = aes(x = continent))
+
+# A default statisztika felülírható
+# ..prop.. használatával például sûrûség ábrát kapunk.
+ggplot(data = gapminder_2007) + 
+  geom_bar(mapping = aes(x = continent, y = ..prop.., group = 1)) # default: group = continent
+
+# Az értékeket ismét ellenõrizhetjük egy táblázattal
+prop.table(table(gapminder_2007$continent))
+
+```
+
+A második chart esetében látható `group = 1` paraméternél egy "dummy" group változót adunk meg. A `geom_bar()` alapesetben a statisztikai transzformációt az x tengelyen meghatározott kategóriánként végzi pl. kontinensenként összeszámolja az országokat. Ha a sûrûséget szeretnénk ábrázolni, akkor az alapbeállítás mellett minden kontinens esetében egységnyi hosszúságú oszlopot látnánk, egy adott kategórián belül az adott kategória aránya 100%. A "dummy" group változóval érjük el, hogy az összes kategórián belül számolja a függvény az egyes kategóriák megoszlását. A változó "dummy" változó, mert nem szerepel az adattáblában, értéke tetszõleges.
+
+A sûrûség diagram "dummy" group változó nélkül:
+
+```{r}
+
+# A kalkuláció alapbeállítások mellet x kategóriánként történik
+ggplot(data = gapminder_2007) + 
+  geom_bar(mapping = aes(x = continent, y = ..prop..)) # default: group = continent
+
+```
+
+Végül nézzük meg, hogyan készíthetõek el ugyanezek a chart típusok kategóriákra bontva. Példaként a kontinensek népesség szerinti megoszlását fogjuk elõállítani az egyes évekre.
+
+```{r}
+
+# A kontinensek népesség szerinti megoszlása a mintában az egyes években
+ggplot(data = gapminder) + 
+  geom_col(mapping = aes(x = year, y=pop, fill = continent))
+
+# A kontinensek népesség szerinti aránya a mintában az egyes években
+ggplot(data = gapminder) + 
+  geom_col(mapping = aes(x = year, y=pop, fill = continent), position = "fill")
+
+# Az adatok táblázatos formában
+gapminder_continent_pop_summary <- gapminder %>%
+  group_by(year, continent) %>%
+  # Elõször kontinensenként összegzzük a népességszámot millióban mérve
+  summarise (continent_total_pop_m = sum(pop/1000000)) %>%
+  mutate(# Az egyes kontinensek népesség szerinti arányát 2 tizedesjegyik jelenítjük meg
+         prop = format(round(continent_total_pop_m / sum(continent_total_pop_m),2), nsmall = 2),
+         # Az elõbb létrehozott változót egész milliókra kerekítjük
+         continent_total_pop_m = round(continent_total_pop_m))
+
+head(gapminder_continent_pop_summary)
+tail(gapminder_continent_pop_summary)
+
+# A népesség szerinti arány alakulását ábrázolhatjuk vonaldiagrammal is
+ggplot(data=gapminder_continent_pop_summary, aes(x=year, y=prop, color=continent, group = continent)) +
+  # Nem minden évre van adatunk,
+  # a group paraméter adja meg, hogy melyik pontok legyenek összekötve
+  geom_line()
+
+```
+
+
+### Több layer alkalmazása egy charton
+
+A loess algoritmus mûködését érthetõbbé tehetjük, ha az illesztett görbe mellett megjelenítjük az eredeti megfigyelési pontokat, és a pontokra illeszthetõ lineáris regresszió egyenesét is. Az ábra tetszõleges számú új layerrel bõvíthetõ. A késõbb hozzáadott rétegek kerülnek felülre, vagyis ha több réteg átfed, mindig az utolsóként definiált "legfelsõ" réteg elemei látszódnak. Ha minden egyes layer ugyanazt a data.frame-t használja, akkor a mappinget elég egyszer, a `ggplot()` függvényen belül megadni. A `geom_name()` függvényekben az adott layerhez meghatározott paraméter értékek felülírják a `ggplot()` függvényben megadott értékeket.
+
+```{r fig.width=9 }
+
+# Európa és Amerika országainak GDP/fõ értéke és várható élettartama 1987-ban, 1997-ben és 2007-ben
+# A használt data.frame minden esetben ugyanaz
+# Ha egy paramétert többször adunk meg, a geom függvényben szereplõ felülírja
+# a ggplot függvényben megadottat.
+
+ggplot(eur_am_1957_1987_2007, mapping = aes(x = gdpPercap, y = lifeExp, color = continent)) +
+  geom_point() + # pontdiagram
+  geom_smooth(method = "lm", se = FALSE, color = "grey", linetype = 2) + # lineáris regresszió egyenese
+  geom_smooth(method = "loess", se = FALSE, color = "grey50") + # loess görbe
+  facet_grid(continent ~ year)
+
+```
+
+A több data.frame-es eset bemutatásához készítsünk két új adattáblát, amik Európa országainak adatait tartalmazzák 1957-re és 2007-re.
+
+```{r}
+
+# Európai országok adatai 1957-ben és 2007-ben
+# A data.frame-eket nem kell elõre létrehozni, kifejezéseket is meg lehet adni a data paraméterben,
+# a script viszont átláthatóbb, és ha az új data.frame-t többször felhasználjuk, akkor gyorsabb is így
+
+europe_1957 <- gapminder %>%
+  filter(year == 1957 & continent == "Europe")
+
+europe_2007 <- gapminder %>%
+  filter(year == 2007 & continent == "Europe")
+
+# Pontdiagram két különbözõ data.frame-mel
+ggplot() +
+  geom_point(data = europe_1957, mapping = aes(x=gdpPercap, y=lifeExp), color="grey") +
+  geom_point(data = europe_2007, mapping = aes(x=gdpPercap, y=lifeExp), color="red")
+
+```
+
+Zárójelben megjegyezzük, hogy a fenti ábrához sok más módon is eljuthattunk volna, például úgy, ha a két év adatait egy data.frame-ben tartjuk és a `color` paramétert az évtõl tesszük függõvé.
+
+### Tengely skálák, színskálák
+
+Az eddigiek során minden esetben elfogadtuk a ggplot2 automatikus beállításait a tengelyek formázásával kapcsolatban, a legtöbb esetben viszont módosítani szeretnénk ezeken. Azt szeretnénk, ha metrikus változóknál a két tengely az origónál metszené egymást, állítani akarunk a maximum értéken és a lépésközökön, esetleg meg akarjuk változtatni a színskálák értékeit.
+
+A skálák leggyakrabban használt típusai a változó típusától függõen:
+
+* Diszkrét skála: `scale_x_discrete()`, `scale_y_discrete()`
+* Folytonos skála: `scale_x_continous()`, `scale_y_continous()`
+* Dátum skála: `scale_x_date()`, `scale_y_date()`
+
+* Szín skála: `scale_color_discrete()`, `scale_color_continous`
+
+Az eddig látott plotokon az x és y változóhoz tartozó skálákat és a színskálákat a ggplot automatikusan hozta létre.
+
+```{r}
+
+# A kontinensek népesség szerinti megoszlása a mintában az egyes években
+ggplot(data = gapminder) + 
+  geom_col(mapping = aes(x = year, y=pop, fill = continent))
+
+```
+
+Az elõzõ ggplot kód a következõ kódnak felel meg a háttérben:
+
+```{r eval=FALSE}
+
+# A kontinensek népesség szerinti megoszlása a mintában az egyes években
+ggplot(data = gapminder_continent_pop_summary) + 
+  geom_col(mapping = aes(x = year, y=continent_total_pop_m, fill = continent)) +
+  scale_x_continuous() + # a year integer a data.frame-ben
+  scale_y_continuous() + # a pop változó integer
+  scale_color_discrete() # a kontinens szerint színezünk, ami diszkrét változó
+
+```
+
+A következõ példában a fenti chart y tengelyén beállítjuk a lépésközöket, állítunk a tengelyek maximum és minimum értékén, és másik színskálát adunk meg. 
+
+```{r}
+
+# A kontinensek népesség szerinti megoszlása a mintában az egyes években
+ggplot(data = gapminder_continent_pop_summary) + 
+  geom_col(mapping = aes(x = year, y=continent_total_pop_m, fill = continent)) +
+  # Az x tengelyen 1950 és 2010 között 10 éves lépésköz
+  scale_x_continuous(breaks = seq(1950,2010,by=10)) +
+  # Az y tengely min.: 0, max: 7 Mrd, 0-7 Mrd között 10 éves lépésköz
+  scale_y_continuous(limits = c(0,7000), expand = c(0,0), breaks = seq(0,7000,by=1000)) + 
+  # Egyedileg megadott diszkrét szín értékek
+  scale_fill_manual(values = c("#ffa500", "#83b100","#2b8a00","#878c8e","#add8e6")) 
+
+```
+
+A `breaks` paraméterben az osztópontokat tudjuk megadni vektorként, a `limits` paraméterben a tengely minimum és maximum értékét, az `expand = c(0,0)` beállítással tudjuk biztosítani, hogy az oszlopok a 0 ponttól induljanak. A színskálát, ha a színezés diszkrét skálától függ, akkor manuális skála megadásával tudjuk módosítani. Másik skálát kell használnunk, ha a kitöltéshez (fill), vagy ha a körvonal színéhez (color) szeretnénk új skálát rendelni. A kitöltés skálája a `scale_fill_manual()` függvénnyel, a körvonalé `scale_color_manual()` függvénnyel adható meg. Ha folytonos változóhoz szeretnénk színskálát rendelni, akkor választhatunk olyan skálát, ahol a kezdõ és a végpont színeit kell megadnunk, a köztes színek pedig automatikusan legenerálódnak, például `scale_colour_gradient()`, más skáláknál egy vagy több köztes osztópont színét is megadhatjuk, például `scale_colour_gradient2()`. 
+
+Maguk a színkódok többféle módon is megadhatóak, például: 
+
+* Ahogy azt korábban láttuk a szín nevének megadásával pl. "red". A `colors()` paranccsal kérhetõ le az összes elérhetõ színelnevezés. [Online](http://research.stowers.org/mcm/efg/R/Color/Chart/) az elnevezésekhez tartozó színpalettákat is megtaláljátok 
+* Hexadecimális kóddal, erre a fenti kód nyújt példát
+* RGB kóddal, az `rgb()` függvény segítségével, pédául a tiszta kék szín kódja: `c(rgb(0, 0, 255, maxColorValue = 255)`
+
+A megfelelõ színek megtalálásában segítenek a ggplot2-n belül megtalálható beépített színskálák, úgy mint a `scale_colour_brewer()`, illetve számos online tool is elérhetõ, ami segít a színskálák összerakásában. A [Chroma.js](https://gka.github.io/palettes/) például pár megadott színkód vagy színnév alapján generál szekvenciális (inkább folytonos adatokhoz alkalmas) és divergens (inkább diszkrét adatokhoz alkalmas) színskálát.
+
+### Feliratok és címkék
+
+A tengelyek osztópontjainak feliratát a `labels()` függvénnyel állíthatjuk be. A tengelyfeliratok számának azonosnak kell lennie az osztópontok számával, de a felirat lehet üres is. Az elõzõ charton tovább dolgozva az y tengely osztópontjainak feliratait milliárdokban fogjuk bemutatni. Ehhez elõször egy formázó függvényt definiálunk, amit késõbb felhasználunk a chartban. Ezen kívül feliratozzuk az x és az y tengelyt, adatcímkézzük az oszlopokat, címet adunk a chartnak, és mégváltoztatjuk a jelmagyarázat címét.
+
+```{r}
+
+# formázáshoz használt függvény definiálása
+# e.g.: num_b_2_digits(1100) eredménye "1.1 Mrd"
+num_m2b_2_digits <- function(num){
+  paste(format(num/1000, digits = 3),"Mrd")
+}
+
+# A kontinensek népesség szerinti megoszlása a mintában az egyes években
+# A ggplot() és geom() fvt. átrendeztük, hogy ne kelljen aes()-t ismételni
+# group=continent beállítás kell, hogy a label-ek a megfelelõ helyre kerüljenek
+ggplot(data = gapminder_continent_pop_summary, aes(x = year, y=continent_total_pop_m, group=continent)) + 
+  geom_col(mapping = aes(fill = continent)) +
+  scale_x_continuous(breaks = seq(1950,2010,by=10)) +
+  scale_y_continuous(
+    limits = c(0,7000), 
+    expand = c(0,0), 
+    breaks = seq(0,7000,by=1000),
+    # a labels függvény alkalmazza a formázást az összes osztópont feliratra
+    labels = num_m2b_2_digits) + 
+  # A jelmagyarázat módosítása a színskálán belül módosítható
+  scale_fill_manual(values = c("#ffa500", "#83b100","#2b8a00","#878c8e","#add8e6"),
+                    name = "Kontinens",
+                    labels = c("Afrika","Amerika","Ázsia","Európa","Óceánia")) +
+  # Címkék hozzáadása
+  geom_text(mapping = aes(label=continent_total_pop_m),
+            position=position_stack(vjust = 0.5),
+            size=3,
+            color="white",
+            fontface="bold") +
+  # Címek és tengelyfeliratok
+  ggtitle("A kontinensek népessége az egyes megfigyelési években",
+          subtitle = "142 ország adatai alapján 1952 - 2007") +
+  xlab("Év") +
+  ylab("Népesség")
+  
+```
+
+
+### Témák
+
+A plot megjelenésén számos további elem módosítható, ezek többségükben a `theme()` függvényen keresztül érhtõek el. A következõ példában a jelmagyarázatot a chart alá helyezzük, eltüntetjük az osztópontok jelölõit az y tengelyen és a chart hátterét, és szürkére színezzük az x tengelyt.
+
+```{r}
+
+# formázáshoz használt függvény definiálása
+# e.g.: num_b_2_digits(1100000000) eredménye "1,1 Mrd"
+num_b_2_digits <- function(num){
+  paste(format(num/1000000000, digits = 3),"Mrd")
+}
+
+# A kontinensek népesség szerinti megoszlása a mintában az egyes években
+ggplot(data = gapminder_continent_pop_summary, aes(x = year, y=continent_total_pop_m, group=continent)) + 
+  geom_col(mapping = aes(fill = continent)) +
+  scale_x_continuous(breaks = seq(1950,2010,by=10)) +
+  scale_y_continuous(
+    limits = c(0,7000), 
+    expand = c(0,0), 
+    breaks = seq(0,7000,by=1000),
+    labels = num_m2b_2_digits) + 
+  scale_fill_manual(values = c("#ffa500", "#83b100","#2b8a00","#878c8e","#add8e6"),
+                    name = "Kontinens",
+                    labels = c("Afrika","Amerika","Ázsia","Európa","Óceánia")) +
+  geom_text(mapping = aes(label=continent_total_pop_m),
+            position=position_stack(vjust = 0.5),
+            size=3,
+            color="white",
+            fontface="bold") +
+  ggtitle("A kontinensek népessége az egyes megfigyelési években",
+          subtitle = "142 ország adatai alapján 1952 - 2007") +
+  xlab("Év") +
+  ylab("Népesség") +
+  theme(
+    legend.position = "bottom", # a legend a chart alatt foglal helyet
+    axis.ticks.y = element_blank(), # üres elem, vagyis eltûnik az osztópont jelölõ
+    axis.line.x = element_line(colour = "grey30", size = 1), # az x tengely szürke
+    panel.background = element_blank() # üres elem, vagyis eltûnik a háttér
+  )
+
+```
+
+### Sablonok készítése
+
+Ha a chartok egyes elemei állandóak, például azonos a betû típus vagy a színskálák színei, akkor érdemes lehet sablont készíteni a ggplot2 ábrákhoz, ami azután minden ábrához használható. Errõl például ezen a [linken](https://www.ildiczeller.com/2017/10/15/custom-ggplot2-theme/) található leírás.
+
+Emellett kisebb munkát igényel, és érdemes lehet a gyakran használt segédfüggvényeket, mint például a formázáshoz használt `num_b_2_digits()` függvény, egy külön scriptben elmenteni, ami aztán az új scriptek elején betölthetõ a `source()` függvénnyel, és felhasználható az új chartokhoz.
+
+## Források
+
+```{r results="asis", echo=FALSE}
+PrintBibliography(biblio)
+```
+
