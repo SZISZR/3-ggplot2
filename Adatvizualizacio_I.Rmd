@@ -11,12 +11,21 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(RefManageR)
 
-biblio <- ReadZotero(user = "userid", .params = list(collection = 'collectionid', key="key"),delete.file = TRUE)
+# Forrás lista beolvasása
+biblio <- ReadZotero(user = "uid", .params = list(collection = 'cid', key="key"),delete.file = TRUE)
+
+# Forrásokhoz tartozó kulcsok listázása a hivatkozásokhoz
+# Futtatáshoz közvetlenül nem kell, csak köztes munkához
+refs <- biblio %>% {
+  .$title
+} %>%
+  bind_rows() %>%
+  gather(key = 'key', value = 'title', 1:length(biblio))
 
 ```
 
 Az R képes plotok elõállítására további csomagok telepítése nélkül az úgynevezett base csomagból. Az így készíthetõ ábrák nem veszik fel a versenyt a késõbb bemutatott ggplot csomag ábráival, elõnyük viszont, hogy egyszerûen és gyorsan elõállíthatóak. Az órán elõször a base csomaggal, majd a ggplot2 csomaggal foglalkozunk.
-Az óra anyagai elsõsorban az R for Data Science könyvre épülnek `r Cite(biblio[[1]])`
+Az óra anyagai elsõsorban az R for Data Science könyvre épülnek `r Cite(biblio['wickham_r_2017'])`
 
 ## Ismerkedés az órán használt adatokkal
 
@@ -463,7 +472,7 @@ ggplot(data = gapminder_continent_pop_summary, aes(x = year, y=continent_total_p
     breaks = seq(0,7000,by=1000),
     # a labels függvény alkalmazza a formázást az összes osztópont feliratra
     labels = num_m2b_2_digits) + 
-  # A jelmagyarázat módosítása a színskálán belül módosítható
+  # A kitöltéshez tartozó jelmagyarázat a hozzá tartozó színskálán belül módosítható
   scale_fill_manual(values = c("#ffa500", "#83b100","#2b8a00","#878c8e","#add8e6"),
                     name = "Kontinens",
                     labels = c("Afrika","Amerika","Ázsia","Európa","Óceánia")) +
@@ -489,9 +498,9 @@ A plot megjelenésén számos további elem módosítható, ezek többségükben a `theme(
 ```{r}
 
 # formázáshoz használt függvény definiálása
-# e.g.: num_b_2_digits(1100000000) eredménye "1,1 Mrd"
-num_b_2_digits <- function(num){
-  paste(format(num/1000000000, digits = 3),"Mrd")
+# e.g.: num_b_2_digits(1100) eredménye "1.1 Mrd"
+num_m2b_2_digits <- function(num){
+  paste(format(num/1000, digits = 3),"Mrd")
 }
 
 # A kontinensek népesség szerinti megoszlása a mintában az egyes években
@@ -528,7 +537,24 @@ ggplot(data = gapminder_continent_pop_summary, aes(x = year, y=continent_total_p
 
 Ha a chartok egyes elemei állandóak, például azonos a betû típus vagy a színskálák színei, akkor érdemes lehet sablont készíteni a ggplot2 ábrákhoz, ami azután minden ábrához használható. Errõl például ezen a [linken](https://www.ildiczeller.com/2017/10/15/custom-ggplot2-theme/) található leírás.
 
-Emellett kisebb munkát igényel, és érdemes lehet a gyakran használt segédfüggvényeket, mint például a formázáshoz használt `num_b_2_digits()` függvény, egy külön scriptben elmenteni, ami aztán az új scriptek elején betölthetõ a `source()` függvénnyel, és felhasználható az új chartokhoz.
+Emellett kisebb munkát igényel, és érdemes lehet a gyakran használt segédfüggvényeket, mint például a formázáshoz használt `num_m2b_2_digits()` függvény, egy külön scriptben elmenteni, ami aztán az új scriptek elején betölthetõ a `source()` függvénnyel, és felhasználható az új chartokhoz.
+
+## Házi feladat
+
+1. A plot függvény segítségével állítsatok elõ vonaldiagramot a várható élettartam alakulásáról Ausztriában 1990 után. A vonal színe legyen az alapbeállítástól eltérõ.
+
+\n
+
+2. Ábrázoljátok a 2000-es évtõl kezdve Európában a medián és az átlagos várható élettartam alakulását évenként.
+    * *Hint:* a medián és az átlagos várható élettartam két különbözõ rétegben ábrázolható. 
+
+\n
+
+3. **A pie chart rossz** vagy csak [nagyon ritkán jó](https://medium.com/@KristinHenry/in-defense-of-pie-charts-and-why-you-shouldnt-use-them-df2e8ccb5f76). A következõ [blog bejegyzés](http://www.storytellingwithdata.com/blog/2014/08/design-with-audience-in-mind) egy pie chart makeover-rõl szól. Az új vizualizációt a cikkben Excelben készítik el, készítsetek hasonló ábrát R-ben. Az adatok letölthetõek a cikk végén található [linkrõl](https://www.dropbox.com/s/3ctpw1h1mje2fl0/USA%20Today%20Diversity%20Remake.xlsx?dl=0#)
+    * *Hint1:* Az adatokat érdemes .txt vagy .csv formátumú fájlba másolni, majd `read.table()`, `read.csv()` vagy `read.delim()` függvénnyel beolvasni
+    * *Hint2:* A megoszlásra vonatkozó adatokat *%* formázás nélkül olvassátok be, úgy, hogy a beolvasást követõen numerikus formátumú legyen. Figyeljetek a tizedes vesszõ/pont beállításra, ha ez nem stimmel, az R szöveges mezõként fogja felismerni az adatokat. Ehhez a `read.x()` függvényekben a `dec` paramétert kell helyesen beállítani.
+    * *Hint3:* Az órán vertikális oszlopdigramokat láttunk, a feladatban viszont horizontális diagramot kell létrehozni. Ehhez meg kell fordítani a tengelyt a `coord_flip()` függvénnyel. A [hivatalos dokumentációban](http://ggplot2.tidyverse.org/reference/geom_bar.html) találtok ehhez leírást és példát is.
+    * *Hint4:* Ha nagyon elakadtok a feladatmegoldás során, akkor a következõ [tutorial](http://rstudio-pubs-static.s3.amazonaws.com/4305_8df3611f69fa48c2ba6bbca9a8367895.html) egy egészen hasonló problémát old meg
 
 ## Források
 

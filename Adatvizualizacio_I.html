@@ -530,7 +530,7 @@ ggplot(data = gapminder_continent_pop_summary, aes(x = year, y=continent_total_p
     breaks = seq(0,7000,by=1000),
     # a labels függvény alkalmazza a formázást az összes osztópont feliratra
     labels = num_m2b_2_digits) + 
-  # A jelmagyarázat módosítása a színskálán belül módosítható
+  # A kitöltéshez tartozó jelmagyarázat a hozzá tartozó színskálán belül módosítható
   scale_fill_manual(values = c(&quot;#ffa500&quot;, &quot;#83b100&quot;,&quot;#2b8a00&quot;,&quot;#878c8e&quot;,&quot;#add8e6&quot;),
                     name = &quot;Kontinens&quot;,
                     labels = c(&quot;Afrika&quot;,&quot;Amerika&quot;,&quot;Ázsia&quot;,&quot;Európa&quot;,&quot;Óceánia&quot;)) +
@@ -551,9 +551,9 @@ ggplot(data = gapminder_continent_pop_summary, aes(x = year, y=continent_total_p
 <h3>Témák</h3>
 <p>A plot megjelenésén számos további elem módosítható, ezek többségükben a <code>theme()</code> függvényen keresztül érhtőek el. A következő példában a jelmagyarázatot a chart alá helyezzük, eltüntetjük az osztópontok jelölőit az y tengelyen és a chart hátterét, és szürkére színezzük az x tengelyt.</p>
 <pre class="r"><code># formázáshoz használt függvény definiálása
-# e.g.: num_b_2_digits(1100000000) eredménye &quot;1,1 Mrd&quot;
-num_b_2_digits &lt;- function(num){
-  paste(format(num/1000000000, digits = 3),&quot;Mrd&quot;)
+# e.g.: num_b_2_digits(1100) eredménye &quot;1.1 Mrd&quot;
+num_m2b_2_digits &lt;- function(num){
+  paste(format(num/1000, digits = 3),&quot;Mrd&quot;)
 }
 
 # A kontinensek népesség szerinti megoszlása a mintában az egyes években
@@ -588,8 +588,31 @@ ggplot(data = gapminder_continent_pop_summary, aes(x = year, y=continent_total_p
 <div id="sablonok-keszitese" class="section level3">
 <h3>Sablonok készítése</h3>
 <p>Ha a chartok egyes elemei állandóak, például azonos a betű típus vagy a színskálák színei, akkor érdemes lehet sablont készíteni a ggplot2 ábrákhoz, ami azután minden ábrához használható. Erről például ezen a <a href="https://www.ildiczeller.com/2017/10/15/custom-ggplot2-theme/">linken</a> található leírás.</p>
-<p>Emellett kisebb munkát igényel, és érdemes lehet a gyakran használt segédfüggvényeket, mint például a formázáshoz használt <code>num_b_2_digits()</code> függvény, egy külön scriptben elmenteni, ami aztán az új scriptek elején betölthető a <code>source()</code> függvénnyel, és felhasználható az új chartokhoz.</p>
+<p>Emellett kisebb munkát igényel, és érdemes lehet a gyakran használt segédfüggvényeket, mint például a formázáshoz használt <code>num_m2b_2_digits()</code> függvény, egy külön scriptben elmenteni, ami aztán az új scriptek elején betölthető a <code>source()</code> függvénnyel, és felhasználható az új chartokhoz.</p>
 </div>
+</div>
+<div id="hazi-feladat" class="section level2">
+<h2>Házi feladat</h2>
+<ol style="list-style-type: decimal">
+<li>A plot függvény segítségével állítsatok elő vonaldiagramot a várható élettartam alakulásáról Ausztriában 1990 után. A vonal színe legyen az alapbeállítástól eltérő.</li>
+</ol>
+
+<ol start="2" style="list-style-type: decimal">
+<li>Ábrázoljátok a 2000-es évtől kezdve Európában a medián és az átlagos várható élettartam alakulását évenként.
+<ul>
+<li><em>Hint:</em> a medián és az átlagos várható élettartam két különböző rétegben ábrázolható.</li>
+</ul></li>
+</ol>
+
+<ol start="3" style="list-style-type: decimal">
+<li><strong>A pie chart rossz</strong> vagy csak <a href="https://medium.com/@KristinHenry/in-defense-of-pie-charts-and-why-you-shouldnt-use-them-df2e8ccb5f76">nagyon ritkán jó</a>. A következő <a href="http://www.storytellingwithdata.com/blog/2014/08/design-with-audience-in-mind">blog bejegyzés</a> egy pie chart makeover-ről szól. Az új vizualizációt a cikkben Excelben készítik el, készítsetek hasonló ábrát R-ben. Az adatok letölthetőek a cikk végén található <a href="https://www.dropbox.com/s/3ctpw1h1mje2fl0/USA%20Today%20Diversity%20Remake.xlsx?dl=0#">linkről</a>
+<ul>
+<li><em>Hint1:</em> Az adatokat érdemes .txt vagy .csv formátumú fájlba másolni, majd <code>read.table()</code>, <code>read.csv()</code> vagy <code>read.delim()</code> függvénnyel beolvasni</li>
+<li><em>Hint2:</em> A megoszlásra vonatkozó adatokat <em>%</em> formázás nélkül olvassátok be, úgy, hogy a beolvasást követően numerikus formátumú legyen. Figyeljetek a tizedes vessző/pont beállításra, ha ez nem stimmel, az R szöveges mezőként fogja felismerni az adatokat. Ehhez a <code>read.x()</code> függvényekben a <code>dec</code> paramétert kell helyesen beállítani.</li>
+<li><em>Hint3:</em> Az órán vertikális oszlopdigramokat láttunk, a feladatban viszont horizontális diagramot kell létrehozni. Ehhez meg kell fordítani a tengelyt a <code>coord_flip()</code> függvénnyel. A <a href="http://ggplot2.tidyverse.org/reference/geom_bar.html">hivatalos dokumentációban</a> találtok ehhez leírást és példát is.</li>
+<li><em>Hint4:</em> Ha nagyon elakadtok a feladatmegoldás során, akkor a következő <a href="http://rstudio-pubs-static.s3.amazonaws.com/4305_8df3611f69fa48c2ba6bbca9a8367895.html">tutorial</a> egy egészen hasonló problémát old meg</li>
+</ul></li>
+</ol>
 </div>
 <div id="forrasok" class="section level2">
 <h2>Források</h2>
